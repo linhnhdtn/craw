@@ -6,7 +6,7 @@ export interface CrawlConfig {
   delayMs: number;
   timeout: number;
   outputDir: string;
-  mode: "product" | "cms" | "default";
+  mode: "product" | "cms" | "article" | "default";
 }
 
 /** Data extracted from a single successfully crawled page */

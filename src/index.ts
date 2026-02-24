@@ -2,6 +2,7 @@ import * as readline from "readline";
 import * as path from "path";
 import { CrawlConfig, PageData, CrawlError, CrawlResult, CrawlSummary } from "./types";
 import { parseSitemap, filterUrls } from "./sitemap-parser";
+import { readUrlsFromFile } from "./file-reader";
 import { crawlPage } from "./crawler";
 import {
   exportData,
@@ -20,7 +21,7 @@ import {
  * Parse CLI arguments into a CrawlConfig.
  * Supports --url, --filter, --concurrency, --delay, --timeout, --output.
  */
-function parseArgs(): Partial<CrawlConfig> & { sitemapUrl?: string } {
+function parseArgs(): Partial<CrawlConfig> & { sitemapUrl?: string; inputFile?: string; urlColumn?: string } {
   const args = process.argv.slice(2);
   const opts: Record<string, string> = {};
 
@@ -35,6 +36,8 @@ function parseArgs(): Partial<CrawlConfig> & { sitemapUrl?: string } {
 
   return {
     sitemapUrl: opts.url,
+    inputFile: opts.input,
+    urlColumn: opts.column,
     filter: opts.filter ? new RegExp(opts.filter) : null,
     concurrency: opts.concurrency ? parseInt(opts.concurrency, 10) : undefined,
     delayMs: opts.delay ? parseInt(opts.delay, 10) : undefined,
@@ -62,8 +65,16 @@ function promptForUrl(): Promise<string> {
 async function main(): Promise<void> {
   const args = parseArgs();
 
+  const usingFile = Boolean(args.inputFile);
+  const sitemapUrl = usingFile ? args.inputFile! : (args.sitemapUrl || (await promptForUrl()));
+
+  if (!usingFile && !sitemapUrl) {
+    console.error("Error: No sitemap URL provided.");
+    process.exit(1);
+  }
+
   const config: CrawlConfig = {
-    sitemapUrl: args.sitemapUrl || (await promptForUrl()),
+    sitemapUrl,
     filter: args.filter ?? null,
     concurrency: args.concurrency || 5,
     delayMs: args.delayMs ?? 500,
@@ -71,26 +82,32 @@ async function main(): Promise<void> {
     outputDir: path.resolve(args.outputDir || "./output"),
   };
 
-  if (!config.sitemapUrl) {
-    console.error("Error: No sitemap URL provided.");
-    process.exit(1);
-  }
-
   console.log("Sitemap Crawler v1.0\n");
 
   const http = createHttpClient(config.timeout);
 
-  // ── Step 1: Parse sitemap ─────────────────────────────────────────
-  console.log("Step 1: Parsing sitemap...");
-
+  // ── Step 1: Load URLs ─────────────────────────────────────────────
   let rawUrls: string[];
-  try {
-    rawUrls = await parseSitemap(config.sitemapUrl, http);
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(`\n   Error: Could not fetch sitemap at ${config.sitemapUrl}`);
-    console.error(`   ${msg}`);
-    process.exit(1);
+
+  if (usingFile) {
+    console.log(`Step 1: Reading URLs from file: ${args.inputFile}...`);
+    try {
+      rawUrls = readUrlsFromFile(args.inputFile!, args.urlColumn);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`\n   Error: ${msg}`);
+      process.exit(1);
+    }
+  } else {
+    console.log("Step 1: Parsing sitemap...");
+    try {
+      rawUrls = await parseSitemap(config.sitemapUrl, http);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`\n   Error: Could not fetch sitemap at ${config.sitemapUrl}`);
+      console.error(`   ${msg}`);
+      process.exit(1);
+    }
   }
 
   const totalInSitemap = rawUrls.length;

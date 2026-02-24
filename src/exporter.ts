@@ -5,6 +5,16 @@ import { PageData, CrawlError, CrawlSummary } from "./types";
 /** UTF-8 BOM for Excel compatibility */
 const BOM = "\uFEFF";
 
+/** Generate a filename with a timestamp suffix to avoid overwriting old runs. */
+function timestampedPath(outputDir: string, base: string, ext: string): string {
+  const ts = new Date()
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace("T", "_")
+    .slice(0, 15); // "20260224_143022"
+  return path.join(outputDir, `${base}_${ts}${ext}`);
+}
+
 /**
  * Escape a value for safe inclusion in a CSV cell.
  * Wraps in double quotes if the value contains commas, quotes, or newlines.
@@ -95,7 +105,7 @@ const ERROR_COLUMNS: { key: keyof CrawlError & string }[] = [
  */
 export function exportData(pages: PageData[], outputDir: string): string {
   fs.mkdirSync(outputDir, { recursive: true });
-  const filePath = path.join(outputDir, "data.csv");
+  const filePath = timestampedPath(outputDir, "data", ".csv");
   fs.writeFileSync(
     filePath,
     toCsv(pages as unknown as Record<string, unknown>[], DATA_COLUMNS),
@@ -112,7 +122,7 @@ export function exportData(pages: PageData[], outputDir: string): string {
  */
 export function exportErrors(errors: CrawlError[], outputDir: string): string {
   fs.mkdirSync(outputDir, { recursive: true });
-  const filePath = path.join(outputDir, "errors.csv");
+  const filePath = timestampedPath(outputDir, "errors", ".csv");
   fs.writeFileSync(
     filePath,
     toCsv(errors as unknown as Record<string, unknown>[], ERROR_COLUMNS),
@@ -129,7 +139,7 @@ export function exportErrors(errors: CrawlError[], outputDir: string): string {
  */
 export function exportUrlList(urls: string[], outputDir: string): string {
   fs.mkdirSync(outputDir, { recursive: true });
-  const filePath = path.join(outputDir, "urls.txt");
+  const filePath = timestampedPath(outputDir, "urls", ".txt");
   fs.writeFileSync(filePath, urls.join("\n") + "\n", "utf-8");
   return filePath;
 }
@@ -145,7 +155,7 @@ export function exportSummary(
   outputDir: string
 ): string {
   fs.mkdirSync(outputDir, { recursive: true });
-  const filePath = path.join(outputDir, "summary.json");
+  const filePath = timestampedPath(outputDir, "summary", ".json");
   fs.writeFileSync(filePath, JSON.stringify(summary, null, 2) + "\n", "utf-8");
   return filePath;
 }

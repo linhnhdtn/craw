@@ -80,6 +80,15 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  const runTs = new Date()
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace("T", "_")
+    .slice(0, 15); // "20260224_143022"
+
+  const baseOutputDir = path.resolve(args.outputDir || "./output");
+  const runDir = path.join(baseOutputDir, runTs);
+
   const config: CrawlConfig = {
     sitemapUrl,
     mode: args.mode ?? "default",
@@ -87,7 +96,7 @@ async function main(): Promise<void> {
     concurrency: args.concurrency || 5,
     delayMs: args.delayMs ?? 500,
     timeout: args.timeout || 15_000,
-    outputDir: path.resolve(args.outputDir || "./output"),
+    outputDir: runDir,
   };
 
   const modeLabel: Record<CrawlConfig["mode"], string> = {

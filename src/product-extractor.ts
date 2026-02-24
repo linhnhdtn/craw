@@ -3,33 +3,11 @@ import { ProductData, ProductVariant } from "./product-types";
 
 const BASE_URL = "https://www.artcrystal.eu";
 
-/** Known parameter label → snake_case key mappings */
-const PARAM_KEY_MAP: Record<string, string> = {
-  "category": "category",
-  "diameter": "diameter",
-  "height": "height",
-  "weight": "weight",
-  "number of bulbs": "bulb_count",
-  "max wattage/socket": "max_wattage",
-  "max. wattage/socket": "max_wattage",
-  "material": "material",
-  "color": "color",
-  "bulb type": "bulb_type",
-  "bulb base": "bulb_base",
-  "ip rating": "ip_rating",
-  "voltage": "voltage",
-};
-
 function toSnakeCase(str: string): string {
   return str
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
-}
-
-function normalizeParamKey(raw: string): string {
-  const lower = raw.toLowerCase().trim();
-  return PARAM_KEY_MAP[lower] ?? toSnakeCase(raw);
 }
 
 function makeAbsolute(href: string): string {
@@ -97,7 +75,7 @@ export function extractProduct($: cheerio.CheerioAPI, sourceUrl: string): Produc
       const href = catLink.attr("href") ?? "";
       categoryUrl = makeAbsolute(href);
     } else {
-      const paramKey = normalizeParamKey(rawKey);
+      const paramKey = toSnakeCase(rawKey);
       const paramVal = cleanText(valTd.text());
       if (paramKey && paramVal) {
         parameters[paramKey] = paramVal;

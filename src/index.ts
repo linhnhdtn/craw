@@ -5,6 +5,9 @@ import { parseSitemap, filterUrls } from "./sitemap-parser";
 import { readUrlsFromFile } from "./file-reader";
 import { crawlPage } from "./crawler";
 import { crawlProduct } from "./product-crawler";
+import { crawlArticle } from "./article-crawler";
+import { exportArticlesJson, exportArticlesHtml } from "./article-exporter";
+import { ArticleData } from "./article-types";
 import {
   exportData,
   exportErrors,
@@ -32,6 +35,7 @@ function parseArgs(): Partial<CrawlConfig> & { sitemapUrl?: string; inputFile?: 
   for (const arg of args) {
     if (arg === "-p") { mode = "product"; continue; }
     if (arg === "-cms") { mode = "cms"; continue; }
+    if (arg === "-a") { mode = "article"; continue; }
     const eqIdx = arg.indexOf("=");
     if (arg.startsWith("--") && eqIdx !== -1) {
       const key = arg.slice(2, eqIdx);
@@ -102,6 +106,7 @@ async function main(): Promise<void> {
   const modeLabel: Record<CrawlConfig["mode"], string> = {
     product: "Product (-p)",
     cms: "CMS (-cms)",
+    article: "Article (-a)",
     default: "Default",
   };
   console.log(`Sitemap Crawler v1.0  [Mode: ${modeLabel[config.mode]}]\n`);
@@ -193,6 +198,57 @@ async function main(): Promise<void> {
     const csvPath = exportProductsCsv(successes, config.outputDir);
     console.log(`   ${jsonPath} (${successes.length} products)`);
     console.log(`   ${csvPath} (${successes.length} products)`);
+
+    if (failures.length > 0) {
+      console.log(`\n   Failed URLs (${failures.length}):`);
+      for (const f of failures) {
+        console.log(`     x ${f.url}: ${f.error}`);
+      }
+    }
+
+    console.log(`\nDone in ${formatDuration(elapsed)}`);
+    console.log(`   Success: ${successes.length}/${urls.length}`);
+    console.log(`   Errors:  ${failures.length}/${urls.length}`);
+    console.log(`   Output:  ${config.outputDir}/`);
+    return;
+  }
+
+  // ── Article mode (-a) ─────────────────────────────────────────────
+  if (config.mode === "article") {
+    console.log(
+      `Step 2: Crawling ${urls.length} article pages (concurrency: ${config.concurrency})...`
+    );
+    const startTime = Date.now();
+
+    const articleResults = await runInBatches(
+      urls,
+      config.concurrency,
+      config.delayMs,
+      (url) => crawlArticle(url, http),
+      (completed, total, url, result) => {
+        const icon = result.success ? "+" : "x";
+        console.log(`   [${completed}/${total}]  ${icon} ${url}`);
+      }
+    );
+
+    const elapsed = Date.now() - startTime;
+    const successes = articleResults
+      .filter((r) => r.success)
+      .map((r) => (r as { success: true; data: ArticleData }).data);
+    const failures = articleResults.filter((r) => !r.success) as {
+      success: false;
+      url: string;
+      error: string;
+    }[];
+
+    console.log("\nStep 3: Exporting...");
+    const jsonPath = exportArticlesJson(successes, config.outputDir);
+    console.log(`   ${jsonPath} (${successes.length} articles)`);
+
+    const htmlPaths = exportArticlesHtml(successes, config.outputDir);
+    for (const p of htmlPaths) {
+      console.log(`   ${p}`);
+    }
 
     if (failures.length > 0) {
       console.log(`\n   Failed URLs (${failures.length}):`);

@@ -1,60 +1,52 @@
-# CLAUDE.md
+## Workflow Orchestration
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+### 1. Plan Node Default
+- Enter plan mode for ANY non-trivial task (3+ steps or architectural decisions)
+- If something goes sideways, STOP and re-plan immediately - don't keep pushing
+- Use plan mode for verification steps, not just building
+- Write detailed specs upfront to reduce ambiguity
 
-## Project Overview
+### 2. Subagent Strategy
+- Use subagents liberally to keep main context window clean
+- Offload research, exploration, and parallel analysis to subagents
+- For complex problems, throw more compute at it via subagents
+- One tack per subagent for focused execution
 
-Sitemap Crawler — a TypeScript CLI tool that parses a sitemap XML, crawls every page, extracts structured SEO/content/e-commerce data, and exports to CSV. Designed for e-commerce sites (e.g. artcrystal.eu) where sitemaps only contain URL lists.
+### 3. Self-Improvement Loop
+- After ANY correction from the user: update `tasks/lessons.md` with the pattern
+- Write rules for yourself that prevent the same mistake
+- Ruthlessly iterate on these lessons until mistake rate drops
+- Review lessons at session start for relevant project
 
-## Commands
+### 4. Verification Before Done
+- Never mark a task complete without proving it works
+- Diff behavior between main and your changes when relevant
+- Ask yourself: "Would a staff engineer approve this?"
+- Run tests, check logs, demonstrate correctness
 
-```bash
-npm install           # Install dependencies
-npm run build         # Compile TypeScript (tsc) to dist/
-npm run dev           # Run via tsx (no build step)
-npm start             # Run compiled dist/index.js
+### 5. Demand Elegance (Balanced)
+- For non-trivial changes: pause and ask "is there a more elegant way?"
+- If a fix feels hacky: "Knowing everything I know now, implement the elegant solution"
+- Skip this for simple, obvious fixes - don't over-engineer
+- Challenge your own work before presenting it
 
-# Example
-npm run dev -- --url="https://example.com/sitemap.xml" --filter="/a/" --concurrency=10
-```
+### 6. Autonomous Bug Fixing
+- When given a bug report: just fix it. Don't ask for hand-holding
+- Point at logs, errors, failing tests - then resolve them
+- Zero context switching required from the user
+- Go fix failing CI tests without being told how
 
-No tests or linting are configured.
+## Task Management
 
-### CLI Arguments
+1. **Plan First**: Write plan to `tasks/todo.md` with checkable items
+2. **Verify Plan**: Check in before starting implementation
+3. **Track Progress**: Mark items complete as you go
+4. **Explain Changes**: High-level summary at each step
+5. **Document Results**: Add review section to `tasks/todo.md`
+6. **Capture Lessons**: Update `tasks/lessons.md` after corrections
 
-| Argument | Default | Description |
-|---|---|---|
-| `--url` | (interactive prompt) | Sitemap URL |
-| `--filter` | none | Regex pattern to filter URLs |
-| `--concurrency` | 5 | Parallel requests per batch |
-| `--delay` | 500 | Delay in ms between batches |
-| `--timeout` | 15000 | Request timeout in ms |
-| `--output` | `./output` | Output directory |
+## Core Principles
 
-## Architecture
-
-Three-step pipeline: **parse sitemap → crawl pages → export files**.
-
-- **src/index.ts** — Entry point. Parses CLI args, falls back to interactive prompt via readline. Orchestrates the 3 steps, prints progress per URL, prints summary.
-- **src/sitemap-parser.ts** — Fetches sitemap XML via axios, parses with `fast-xml-parser`. Recursively handles sitemap index files (`<sitemapindex>` → child `<sitemap><loc>`). Also provides `filterUrls()` for regex filtering.
-- **src/crawler.ts** — `crawlPage(url, http)` fetches HTML and uses cheerio to extract 20 fields: SEO meta tags, content (smart selector cascade: `main` → `article` → `.main-content` → `.content` → `#content` → `.page-content` → `body`), images as absolute URLs, internal/external links, JSON-LD structured data, price/currency from JSON-LD or HTML microdata, page type classification by URL pattern + JSON-LD `@type`. Returns discriminated union `CrawlResult`.
-- **src/exporter.ts** — Writes 4 output files to `outputDir`: `data.csv` (UTF-8 BOM, array fields joined with `|`), `errors.csv`, `urls.txt`, `summary.json`. Manual CSV escaping handles commas/quotes/newlines.
-- **src/utils.ts** — `createHttpClient(timeout)` factory with UA rotation (3 browsers) via axios interceptor, `withRetry` (1 retry, 1s backoff), `runInBatches` (concurrency + delay + per-item progress callback), `deduplicateUrls` (trailing-slash normalization), error extraction helpers, `formatDuration`.
-- **src/types.ts** — Interfaces: `CrawlConfig`, `PageData` (20 fields), `CrawlError`, `CrawlSummary`, `CrawlResult` discriminated union.
-
-## Key Patterns
-
-- TypeScript compiles to ES2022/commonjs (`strict: true`, output to `dist/`)
-- HTTP client is created once with configurable timeout and passed through as dependency (not a global singleton)
-- User-Agent rotates randomly per request via axios interceptor
-- Error handling uses discriminated unions — crawl errors never crash the process, they're collected and exported separately
-- Page type classification: URL regex patterns checked first (`/a/{id}/` → article, `/c/` → category, `/p/` → product, `gallery` → gallery), then JSON-LD `@type` as fallback
-- Content extraction tries semantic selectors before falling back to `<body>`, truncated to 2000 chars
-- Price extraction tries JSON-LD Product.offers first, then HTML microdata (`[itemprop="price"]`), then CSS selectors (`.price`, `.product-price`)
-
-## Key Dependencies
-
-- **axios** — HTTP client (timeout, redirects, UA rotation)
-- **cheerio** — HTML parsing / DOM queries
-- **fast-xml-parser** — Sitemap XML parsing
-- **tsx** — Dev-time TypeScript runner
+- **Simplicity First**: Make every change as simple as possible. Impact minimal code.
+- **No Laziness**: Find root causes. No temporary fixes. Senior developer standards.
+- **Minimat Impact**: Changes should only touch what's necessary. Avoid introducing bugs.

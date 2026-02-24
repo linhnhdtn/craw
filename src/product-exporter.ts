@@ -42,28 +42,28 @@ export function exportProductsCsv(
   fs.mkdirSync(outputDir, { recursive: true });
   const filePath = path.join(outputDir, "products.csv");
 
-  // Collect all unique parameter keys across all products (sorted for stable column order)
+  // Collect all unique parameter keys (sorted for stable column order)
   const paramKeySet = new Set<string>();
   for (const { product } of results) {
-    for (const key of Object.keys(product.parameters)) {
-      paramKeySet.add(key);
-    }
+    for (const key of Object.keys(product.parameters)) paramKeySet.add(key);
   }
   const paramKeys = Array.from(paramKeySet).sort();
+
+  // Collect all unique variant keys (sorted)
+  const variantKeySet = new Set<string>();
+  for (const { product } of results) {
+    for (const variant of product.variants) {
+      for (const key of Object.keys(variant)) variantKeySet.add(key);
+    }
+  }
+  const variantKeys = Array.from(variantKeySet).sort();
 
   const headers = [
     "name",
     "url",
-    "category_name",
-    "category_url",
     ...paramKeys,
     "short_description",
-    "variant_color",
-    "variant_art_no",
-    "variant_price_incl",
-    "variant_price_excl",
-    "variant_in_stock",
-    "variant_status",
+    ...variantKeys.map((k) => `variant_${k}`),
     "main_image",
     "all_images",
     "badges",
@@ -76,22 +76,15 @@ export function exportProductsCsv(
     const { parameters: p } = product;
 
     // At least one row even if no variants
-    const variants = product.variants.length > 0 ? product.variants : [null];
+    const variants = product.variants.length > 0 ? product.variants : [{}];
 
     for (const variant of variants) {
       const cells = [
         product.name,
         product.url,
-        product.category.name,
-        product.category.url,
         ...paramKeys.map((k) => p[k] ?? ""),
         product.short_description,
-        variant?.color ?? "",
-        variant?.art_no ?? "",
-        variant?.price_incl_vat ?? "",
-        variant?.price_excl_vat ?? "",
-        variant != null ? String(variant.in_stock) : "",
-        variant?.status_text ?? "",
+        ...variantKeys.map((k) => variant[k] ?? ""),
         product.images[0] ?? "",
         product.images.join("|"),
         product.badges.join("|"),

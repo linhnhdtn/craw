@@ -1,16 +1,5 @@
-export interface ProductVariant {
-  color: string;
-  art_no: string;
-  price_incl_vat: string;
-  price_excl_vat: string;
-  in_stock: boolean;
-  status_text: string;
-}
-
-export interface ProductCategory {
-  name: string;
-  url: string;
-}
+/** All fields are dynamic — keys are label-derived snake_case strings */
+export type ProductVariant = Record<string, string>;
 
 export interface ProductData {
   name: string;
@@ -18,7 +7,6 @@ export interface ProductData {
   short_description: string;
   long_description: string;
   breadcrumb: string[];
-  category: ProductCategory;
   parameters: Record<string, string>;
   variants: ProductVariant[];
   images: string[];

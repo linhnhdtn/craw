@@ -58,28 +58,17 @@ export function extractProduct($: cheerio.CheerioAPI, sourceUrl: string): Produc
     if (text) breadcrumb.push(text);
   });
 
-  // ── Parameters + Category from tabAdditionalInfo ──────────────────
-  let categoryName = "";
-  let categoryUrl = "";
+  // ── Parameters from tabAdditionalInfo ────────────────────────────
   const parameters: Record<string, string> = {};
 
   $("table.tabAdditionalInfo tr").each((_, tr) => {
     const tds = $(tr).find("td");
     if (tds.length < 2) return;
     const rawKey = cleanText(tds.eq(0).text());
-    const valTd = tds.eq(1);
-
-    if (rawKey.toLowerCase() === "category") {
-      const catLink = valTd.find("a").first();
-      categoryName = cleanText(catLink.text());
-      const href = catLink.attr("href") ?? "";
-      categoryUrl = makeAbsolute(href);
-    } else {
-      const paramKey = toSnakeCase(rawKey);
-      const paramVal = cleanText(valTd.text());
-      if (paramKey && paramVal) {
-        parameters[paramKey] = paramVal;
-      }
+    const paramKey = toSnakeCase(rawKey);
+    const paramVal = cleanText(tds.eq(1).text());
+    if (paramKey && paramVal) {
+      parameters[paramKey] = paramVal;
     }
   });
 
@@ -88,36 +77,53 @@ export function extractProduct($: cheerio.CheerioAPI, sourceUrl: string): Produc
 
   $(".s1-buttonRows .s1-buttonRow").each((_, row) => {
     const $row = $(row);
+    const variant: ProductVariant = {};
 
-    const color = cleanText(
-      $row.find(".s1-buttonRow-val .s1-buttonRow-txt").first().text()
-    );
-    const artNo = cleanText(
-      $row.find(".s1-buttonRow-identifier .s1-buttonRow-txt").first().text()
-    );
+    // Extract all labeled attribute values (e.g. "Variant: Gold", "Color: Silver")
+    // Pattern: <span class="s1-buttonRow-val">LABEL: <span class="s1-buttonRow-txt">VALUE</span></span>
+    $row.find(".s1-buttonRow-val").each((_, valEl) => {
+      const $val = $(valEl);
+      const $clone = $val.clone();
+      $clone.find(".s1-buttonRow-txt").remove();
+      const labelRaw = cleanText($clone.text());
+      const value = cleanText($val.find(".s1-buttonRow-txt").first().text());
+      if (!value) return;
+      const key = labelRaw ? toSnakeCase(labelRaw) : `attr_${Object.keys(variant).length + 1}`;
+      if (key) variant[key] = value;
+    });
 
+    // Extract all labeled line fields (e.g. "Art.No.: AL153")
+    // Pattern: <p class="s1-buttonRow-line ...">LABEL: <span class="s1-buttonRow-txt">VALUE</span></p>
+    $row.find(".s1-buttonRow-line").each((_, lineEl) => {
+      const $line = $(lineEl);
+      const $clone = $line.clone();
+      $clone.find(".s1-buttonRow-txt").remove();
+      const labelRaw = cleanText($clone.text());
+      const value = cleanText($line.find(".s1-buttonRow-txt").first().text());
+      if (!value) return;
+      const key = labelRaw ? toSnakeCase(labelRaw) : `line_${Object.keys(variant).length + 1}`;
+      if (key) variant[key] = value;
+    });
+
+    // Price
     const priceInclRaw = cleanText(
       $row.find(".price .priceCombTaxValueNumber").first().text()
     );
+    if (priceInclRaw) {
+      variant["price_incl_vat"] = priceInclRaw;
+      const priceInclNum = parsePrice(priceInclRaw);
+      variant["price_excl_vat"] =
+        priceInclNum !== null ? formatPrice(priceInclNum / 1.21) : "";
+    }
 
-    const priceInclNum = parsePrice(priceInclRaw);
-    const priceExcl =
-      priceInclNum !== null ? formatPrice(priceInclNum / 1.21) : "";
-
-    // In-stock: .s1-buttonRow-wh with style color: #228B22 (green)
+    // Stock status
     const whEl = $row.find(".s1-buttonRow-wh").first();
     const whStyle = (whEl.attr("style") ?? "").toLowerCase();
-    const inStock = whStyle.includes("#228b22");
+    variant["in_stock"] = whStyle.includes("#228b22") ? "true" : "false";
     const statusText = cleanText(whEl.text());
+    if (statusText) variant["status_text"] = statusText;
 
-    variants.push({
-      color,
-      art_no: artNo,
-      price_incl_vat: priceInclRaw,
-      price_excl_vat: priceExcl,
-      in_stock: inStock,
-      status_text: statusText,
-    });
+    variants.push(variant);
   });
 
   // Fallback: no variant rows → treat main price as single variant
@@ -127,15 +133,11 @@ export function extractProduct($: cheerio.CheerioAPI, sourceUrl: string): Produc
     );
     if (mainPriceRaw) {
       const mainPriceNum = parsePrice(mainPriceRaw);
-      const mainPriceExcl =
-        mainPriceNum !== null ? formatPrice(mainPriceNum / 1.21) : "";
       variants.push({
-        color: "",
-        art_no: "",
         price_incl_vat: mainPriceRaw,
-        price_excl_vat: mainPriceExcl,
-        in_stock: false,
-        status_text: "",
+        price_excl_vat:
+          mainPriceNum !== null ? formatPrice(mainPriceNum / 1.21) : "",
+        in_stock: "false",
       });
     }
   }
@@ -160,7 +162,6 @@ export function extractProduct($: cheerio.CheerioAPI, sourceUrl: string): Produc
     short_description: shortDescription,
     long_description: longDescription,
     breadcrumb,
-    category: { name: categoryName, url: categoryUrl },
     parameters,
     variants,
     images,

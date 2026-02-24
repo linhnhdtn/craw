@@ -6,7 +6,7 @@ export interface ProductData {
   url: string;
   short_description: string;
   long_description: string;
-  breadcrumb: string[];
+  breadcrumb: Array<{ title: string; url: string }>;
   parameters: Record<string, string>;
   variants: ProductVariant[];
   images: string[];

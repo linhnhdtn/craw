@@ -52,10 +52,12 @@ export function extractProduct($: cheerio.CheerioAPI, sourceUrl: string): Produc
   );
 
   // ── Breadcrumb ────────────────────────────────────────────────────
-  const breadcrumb: string[] = [];
+  const breadcrumb: Array<{ title: string; url: string }> = [];
   $("ul.breadcrumbs a").each((_, el) => {
-    const text = cleanText($(el).text());
-    if (text) breadcrumb.push(text);
+    const $el = $(el);
+    const title = cleanText($el.find("span[itemprop='name']").text() || $el.text());
+    const href = $el.attr("href") ?? "";
+    if (title) breadcrumb.push({ title, url: makeAbsolute(href) });
   });
 
   // ── Parameters from tabAdditionalInfo ────────────────────────────

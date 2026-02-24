@@ -4,12 +4,15 @@ import { CrawlConfig, PageData, CrawlError, CrawlResult, CrawlSummary } from "./
 import { parseSitemap, filterUrls } from "./sitemap-parser";
 import { readUrlsFromFile } from "./file-reader";
 import { crawlPage } from "./crawler";
+import { crawlProduct } from "./product-crawler";
 import {
   exportData,
   exportErrors,
   exportUrlList,
   exportSummary,
 } from "./exporter";
+import { exportProductsJson, exportProductsCsv } from "./product-exporter";
+import { ProductScrapeResult } from "./product-types";
 import {
   createHttpClient,
   deduplicateUrls,
@@ -24,8 +27,11 @@ import {
 function parseArgs(): Partial<CrawlConfig> & { sitemapUrl?: string; inputFile?: string; urlColumn?: string } {
   const args = process.argv.slice(2);
   const opts: Record<string, string> = {};
+  let mode: CrawlConfig["mode"] = "default";
 
   for (const arg of args) {
+    if (arg === "-p") { mode = "product"; continue; }
+    if (arg === "-cms") { mode = "cms"; continue; }
     const eqIdx = arg.indexOf("=");
     if (arg.startsWith("--") && eqIdx !== -1) {
       const key = arg.slice(2, eqIdx);
@@ -38,6 +44,7 @@ function parseArgs(): Partial<CrawlConfig> & { sitemapUrl?: string; inputFile?: 
     sitemapUrl: opts.url,
     inputFile: opts.input,
     urlColumn: opts.column,
+    mode,
     filter: opts.filter ? new RegExp(opts.filter) : null,
     concurrency: opts.concurrency ? parseInt(opts.concurrency, 10) : undefined,
     delayMs: opts.delay ? parseInt(opts.delay, 10) : undefined,
@@ -73,16 +80,31 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  const runTs = new Date()
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace("T", "_")
+    .slice(0, 15); // "20260224_143022"
+
+  const baseOutputDir = path.resolve(args.outputDir || "./output");
+  const runDir = path.join(baseOutputDir, runTs);
+
   const config: CrawlConfig = {
     sitemapUrl,
+    mode: args.mode ?? "default",
     filter: args.filter ?? null,
     concurrency: args.concurrency || 5,
     delayMs: args.delayMs ?? 500,
     timeout: args.timeout || 15_000,
-    outputDir: path.resolve(args.outputDir || "./output"),
+    outputDir: runDir,
   };
 
-  console.log("Sitemap Crawler v1.0\n");
+  const modeLabel: Record<CrawlConfig["mode"], string> = {
+    product: "Product (-p)",
+    cms: "CMS (-cms)",
+    default: "Default",
+  };
+  console.log(`Sitemap Crawler v1.0  [Mode: ${modeLabel[config.mode]}]\n`);
 
   const http = createHttpClient(config.timeout);
 
@@ -135,6 +157,54 @@ async function main(): Promise<void> {
 
   if (urls.length === 0) {
     console.log("Nothing to crawl. Exiting.");
+    return;
+  }
+
+  // ── Product mode (-p) ─────────────────────────────────────────────
+  if (config.mode === "product") {
+    console.log(
+      `Step 2: Crawling ${urls.length} product pages (concurrency: ${config.concurrency})...`
+    );
+    const startTime = Date.now();
+
+    const productResults = await runInBatches(
+      urls,
+      config.concurrency,
+      config.delayMs,
+      (url) => crawlProduct(url, http),
+      (completed, total, url, result) => {
+        const icon = result.success ? "+" : "x";
+        console.log(`   [${completed}/${total}]  ${icon} ${url}`);
+      }
+    );
+
+    const elapsed = Date.now() - startTime;
+    const successes = productResults
+      .filter((r) => r.success)
+      .map((r) => (r as { success: true; data: ProductScrapeResult }).data);
+    const failures = productResults.filter((r) => !r.success) as {
+      success: false;
+      url: string;
+      error: string;
+    }[];
+
+    console.log("\nStep 3: Exporting...");
+    const jsonPath = exportProductsJson(successes, config.outputDir);
+    const csvPath = exportProductsCsv(successes, config.outputDir);
+    console.log(`   ${jsonPath} (${successes.length} products)`);
+    console.log(`   ${csvPath} (${successes.length} products)`);
+
+    if (failures.length > 0) {
+      console.log(`\n   Failed URLs (${failures.length}):`);
+      for (const f of failures) {
+        console.log(`     x ${f.url}: ${f.error}`);
+      }
+    }
+
+    console.log(`\nDone in ${formatDuration(elapsed)}`);
+    console.log(`   Success: ${successes.length}/${urls.length}`);
+    console.log(`   Errors:  ${failures.length}/${urls.length}`);
+    console.log(`   Output:  ${config.outputDir}/`);
     return;
   }
 

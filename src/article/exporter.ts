@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
-import { ArticleData } from "./article-types";
+import { ArticleData } from "./types";
 
 /**
  * Export all articles to a single articles.json file.

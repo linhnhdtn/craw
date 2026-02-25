@@ -1,5 +1,5 @@
 import * as cheerio from "cheerio";
-import { ArticleData, ArticleEmbed } from "./article-types";
+import { ArticleData, ArticleEmbed } from "./types";
 
 type CheerioEl = ReturnType<cheerio.CheerioAPI>;
 

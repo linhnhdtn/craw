@@ -1,27 +1,27 @@
 import * as readline from "readline";
 import * as path from "path";
-import { CrawlConfig, PageData, CrawlError, CrawlResult, CrawlSummary } from "./types";
-import { parseSitemap, filterUrls } from "./sitemap-parser";
-import { readUrlsFromFile } from "./file-reader";
-import { crawlPage } from "./crawler";
-import { crawlProduct } from "./product-crawler";
-import { crawlArticle } from "./article-crawler";
-import { exportArticlesJson, exportArticlesHtml } from "./article-exporter";
-import { ArticleData } from "./article-types";
+import { CrawlConfig, PageData, CrawlError, CrawlResult, CrawlSummary } from "./core/types";
+import { parseSitemap, filterUrls } from "./core/sitemap-parser";
+import { readUrlsFromFile } from "./core/file-reader";
+import { crawlPage } from "./core/crawler";
+import { crawlProduct } from "./product/crawler";
+import { crawlArticle } from "./article/crawler";
+import { exportArticlesJson, exportArticlesHtml } from "./article/exporter";
+import { ArticleData } from "./article/types";
 import {
   exportData,
   exportErrors,
   exportUrlList,
   exportSummary,
-} from "./exporter";
-import { exportProductsJson, exportProductsCsv } from "./product-exporter";
-import { ProductScrapeResult } from "./product-types";
+} from "./core/exporter";
+import { exportProductsJson, exportProductsCsv } from "./product/exporter";
+import { ProductScrapeResult } from "./product/types";
 import {
   createHttpClient,
   deduplicateUrls,
   runInBatches,
   formatDuration,
-} from "./utils";
+} from "./core/utils";
 
 /**
  * Parse CLI arguments into a CrawlConfig.

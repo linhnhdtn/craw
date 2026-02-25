@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
-import { ProductScrapeResult } from "./product-types";
+import { ProductScrapeResult } from "./types";
 
 const BOM = "\uFEFF";
 

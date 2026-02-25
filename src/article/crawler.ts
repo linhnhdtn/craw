@@ -1,8 +1,8 @@
 import { AxiosInstance } from "axios";
 import * as cheerio from "cheerio";
-import { withRetry, getErrorMessage } from "./utils";
-import { extractArticle } from "./article-extractor";
-import { ArticleCrawlResult } from "./article-types";
+import { withRetry, getErrorMessage } from "../core/utils";
+import { extractArticle } from "./extractor";
+import { ArticleCrawlResult } from "./types";
 
 /**
  * Fetch an article page and extract structured data.

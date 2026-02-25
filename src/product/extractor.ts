@@ -1,5 +1,5 @@
 import * as cheerio from "cheerio";
-import { ProductData, ProductVariant } from "./product-types";
+import { ProductData, ProductVariant } from "./types";
 
 const BASE_URL = "https://www.artcrystal.eu";
 
